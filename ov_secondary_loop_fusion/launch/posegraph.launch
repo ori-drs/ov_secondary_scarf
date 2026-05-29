@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<launch>
+
+  <arg name="config_file" default="$(find-pkg-share ov_secondary_loop_fusion)/config/master_config.yaml" />
+  <arg name="vocabulary_file" default="$(find-pkg-share ov_secondary_loop_fusion)/data/brief_k10L6.bin"/>
+  <arg name="brief_pattern_file" default="$(find-pkg-share ov_secondary_loop_fusion)/data/brief_pattern.yml" />
+
+  <node name="loop_fusion_node" pkg="ov_secondary_loop_fusion" exec="loop_fusion_node" output="screen">
+    <param name="config_file"     value="$(var config_file)"/>
+    <param name="vocabulary_file"     value="$(var vocabulary_file)"/>
+    <param name="brief_pattern_file"     value="$(var brief_pattern_file)"/>
+  </node>
+</launch>
