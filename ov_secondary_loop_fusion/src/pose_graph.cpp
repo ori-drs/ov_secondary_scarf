@@ -654,7 +654,7 @@ void PoseGraph::optimize4DoF()
             ceres::LossFunction *loss_function;
             loss_function = new ceres::HuberLoss(0.1);
             //loss_function = new ceres::CauchyLoss(1.0);
-            ceres::LocalParameterization* angle_local_parameterization = AngleLocalParameterization::Create();
+            ceres::Manifold* angle_manifold = AngleLocalParameterization::Create();
 
             list<KeyFrame*>::iterator it;
 
@@ -681,7 +681,7 @@ void PoseGraph::optimize4DoF()
 
                 sequence_array[i] = (*it)->sequence;
 
-                problem.AddParameterBlock(euler_array[i], 1, angle_local_parameterization);
+                problem.AddParameterBlock(euler_array[i], 1, angle_manifold);
                 problem.AddParameterBlock(t_array[i], 3);
 
                 if ((*it)->index == first_looped_index || (*it)->sequence == 0)
@@ -848,7 +848,7 @@ void PoseGraph::optimize6DoF()
             ceres::LossFunction *loss_function;
             loss_function = new ceres::HuberLoss(0.1);
             //loss_function = new ceres::CauchyLoss(1.0);
-            ceres::LocalParameterization* local_parameterization = new ceres::QuaternionParameterization();
+            ceres::Manifold* quaternion_manifold = new ceres::QuaternionManifold();
 
             list<KeyFrame*>::iterator it;
 
@@ -873,7 +873,7 @@ void PoseGraph::optimize6DoF()
 
                 sequence_array[i] = (*it)->sequence;
 
-                problem.AddParameterBlock(q_array[i], 4, local_parameterization);
+                problem.AddParameterBlock(q_array[i], 4, quaternion_manifold);
                 problem.AddParameterBlock(t_array[i], 3);
 
                 if ((*it)->index == first_looped_index || (*it)->sequence == 0)

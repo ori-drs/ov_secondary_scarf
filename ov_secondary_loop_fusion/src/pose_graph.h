@@ -18,7 +18,9 @@
 #include <opencv2/opencv.hpp>
 #include <eigen3/Eigen/Dense>
 #include <string>
+#include <ceres/autodiff_manifold.h>
 #include <ceres/ceres.h>
+#include <ceres/manifold.h>
 #include <ceres/rotation.h>
 #include <queue>
 #include <assert.h>
@@ -140,17 +142,24 @@ class AngleLocalParameterization {
  public:
 
   template <typename T>
-  bool operator()(const T* theta_radians, const T* delta_theta_radians,
-                  T* theta_radians_plus_delta) const {
+  bool Plus(const T* theta_radians, const T* delta_theta_radians,
+            T* theta_radians_plus_delta) const {
     *theta_radians_plus_delta =
         NormalizeAngle(*theta_radians + *delta_theta_radians);
 
     return true;
   }
 
-  static ceres::LocalParameterization* Create() {
-    return (new ceres::AutoDiffLocalParameterization<AngleLocalParameterization,
-                                                     1, 1>);
+  template <typename T>
+  bool Minus(const T* y_radians, const T* x_radians,
+             T* y_minus_x_radians) const {
+    *y_minus_x_radians = NormalizeAngle(*y_radians - *x_radians);
+
+    return true;
+  }
+
+  static ceres::Manifold* Create() {
+    return (new ceres::AutoDiffManifold<AngleLocalParameterization, 1, 1>);
   }
 };
 
