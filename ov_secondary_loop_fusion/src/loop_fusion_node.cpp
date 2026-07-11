@@ -29,6 +29,7 @@
 #include <stdexcept>
 #include <thread>
 #include <cctype>
+#include <atomic>
 #include <eigen3/Eigen/Dense>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/eigen.hpp>
@@ -99,8 +100,17 @@ double image_stream_start_time = -1;
 double keyframe_stream_start_time = -1;
 bool pose_graph_auto_saved = false;
 bool has_image_arrival = false;
+std::atomic_bool keyframe_processing_active = false;
 std::chrono::steady_clock::time_point last_image_arrival;
 rclcpp::TimerBase::SharedPtr image_inactive_timer;
+
+struct KeyframeProcessingGuard
+{
+    ~KeyframeProcessingGuard()
+    {
+        keyframe_processing_active = false;
+    }
+};
 
 void throw_serial_buffer_full(const char *buffer_name)
 {
@@ -387,22 +397,25 @@ void process()
                 point_buf.pop();
             }
         }
+        if (pose_msg != NULL)
+            keyframe_processing_active = true;
         m_buf.unlock();
 
         if (pose_msg != NULL)
         {
+            KeyframeProcessingGuard processing_guard;
             //printf("[POSEGRAPH]:  pose time %f \n", pose_msg->header.stamp.toSec());
             //printf("[POSEGRAPH]:  point time %f \n", point_msg->header.stamp.toSec());
             //printf("[POSEGRAPH]:  image time %f \n", image_msg->header.stamp.toSec());
             const double image_time = stamp_seconds(rclcpp::Time(image_msg->header.stamp));
             if (keyframe_stream_start_time < 0.0)
                 keyframe_stream_start_time = image_time;
-            if (!SERIAL_PROCESSING && image_time - keyframe_stream_start_time < SKIP_FIRST_SECONDS)
+            if (image_time - keyframe_stream_start_time < SKIP_FIRST_SECONDS)
             {
                 continue;
             }
 
-            if (!SERIAL_PROCESSING && skip_cnt < SKIP_CNT)
+            if (skip_cnt < SKIP_CNT)
             {
                 skip_cnt++;
                 continue;
@@ -423,7 +436,7 @@ void process()
                                      pose_msg->pose.pose.orientation.x,
                                      pose_msg->pose.pose.orientation.y,
                                      pose_msg->pose.pose.orientation.z).toRotationMatrix();
-            if(SERIAL_PROCESSING || (T - last_t).norm() > SKIP_DIS)
+            if((T - last_t).norm() > SKIP_DIS)
             {
                 vector<cv::Point3f> point_3d; 
                 vector<cv::Point2f> point_2d_uv; 
@@ -558,9 +571,10 @@ int main(int argc, char **argv)
             if (idle.count() < 5000)
                 return;
 
-            bool input_queues_empty = false;
+            bool input_idle = false;
             m_buf.lock();
-            input_queues_empty = image_buf.empty() && point_buf.empty() && pose_buf.empty();
+            const bool input_queues_empty = image_buf.empty() && point_buf.empty() && pose_buf.empty();
+            input_idle = input_queues_empty && !keyframe_processing_active.load();
             const bool serial_incomplete_tail = SERIAL_PROCESSING && !input_queues_empty &&
                 (image_buf.empty() || point_buf.empty() || pose_buf.empty());
             if (serial_incomplete_tail)
@@ -579,14 +593,14 @@ int main(int argc, char **argv)
                     point_buf.pop();
                 while (!pose_buf.empty())
                     pose_buf.pop();
-                input_queues_empty = true;
+                input_idle = !keyframe_processing_active.load();
                 m_process.unlock();
                 printf("[POSEGRAPH]: cleared unmatched serial input tail before autosave "
                        "(image: %zu, point: %zu, pose: %zu)\n",
                        image_queue_size, point_queue_size, pose_queue_size);
             }
             m_buf.unlock();
-            if (!input_queues_empty || posegraph.isOptimizationRunning())
+            if (!input_idle || posegraph.isOptimizationRunning())
                 return;
 
             if (!m_process.try_lock())
@@ -601,9 +615,11 @@ int main(int argc, char **argv)
             }
 
             m_buf.lock();
-            const bool input_queues_still_empty = image_buf.empty() && point_buf.empty() && pose_buf.empty();
+            const bool input_still_idle =
+                image_buf.empty() && point_buf.empty() && pose_buf.empty() &&
+                !keyframe_processing_active.load();
             m_buf.unlock();
-            if (!input_queues_still_empty || posegraph.hasPendingOptimization() || posegraph.isOptimizationRunning())
+            if (!input_still_idle || posegraph.hasPendingOptimization() || posegraph.isOptimizationRunning())
                 return;
 
             if (!m_process.try_lock())

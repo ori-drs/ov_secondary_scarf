@@ -156,6 +156,10 @@ bool PoseGraph::requestGlobalOptimization()
         return false;
 
     std::lock_guard<std::mutex> optimize_lock(m_optimize_buf);
+    std::queue<int> empty_optimize_buf;
+    std::queue<bool> empty_optimize_global_buf;
+    optimize_buf.swap(empty_optimize_buf);
+    optimize_global_buf.swap(empty_optimize_global_buf);
     earliest_loop_index = 0;
     optimize_buf.push(keyframelist.back()->index);
     optimize_global_buf.push(true);
