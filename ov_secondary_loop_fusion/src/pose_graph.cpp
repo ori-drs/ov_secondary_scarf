@@ -485,14 +485,19 @@ int PoseGraph::detectLoop(KeyFrame* keyframe, int frame_index, int *loop_inlier_
     };
 
     const double strong_loop_feat_num = MIN_LOOP_NUM * 1.5;
+    const int max_loop_candidate_checks = 5;
     const int max_weak_loop_candidates = 3;
     LoopMatch best_weak_match;
     int weak_loop_candidates = 0;
+    int loop_candidate_checks = 0;
 
     for (const LoopCandidate &candidate : candidates)
     {
         KeyFrame* old_kf = getKeyFrame(candidate.index);
         int loop_feat_num = 0;
+        if (loop_candidate_checks >= max_loop_candidate_checks)
+            break;
+        loop_candidate_checks++;
         if(old_kf == nullptr || !keyframe->findConnection(old_kf, &loop_feat_num))
             continue;
 
