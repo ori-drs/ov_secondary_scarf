@@ -2,7 +2,7 @@
 #include <filesystem> //C++17
 
 #include <nav_msgs/msg/odometry.hpp>
-#include <sensor_msgs/msg/compressed_image.hpp>
+#include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 
 using namespace std;
@@ -21,7 +21,7 @@ public:
     }
     
     
-    void image_callback(const sensor_msgs::msg::CompressedImage::SharedPtr image_msg);
+    void image_callback(const sensor_msgs::msg::Image::SharedPtr image_msg);
     void pose_callback(const nav_msgs::msg::Odometry::SharedPtr pose_msg);
     void extrinsic_callback(const nav_msgs::msg::Odometry::SharedPtr pose_msg);
     void intrinsics_callback(const sensor_msgs::msg::CameraInfo::SharedPtr msg);

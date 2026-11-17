@@ -15,7 +15,7 @@
 #include <rclcpp/wait_for_message.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <nav_msgs/msg/path.hpp>
-#include <sensor_msgs/msg/compressed_image.hpp>
+#include <sensor_msgs/msg/image.hpp>
 #include <sensor_msgs/msg/point_cloud.hpp>
 #include <sensor_msgs/msg/camera_info.hpp>
 #include <std_msgs/msg/bool.hpp>
@@ -35,7 +35,7 @@
 #include <opencv2/core/eigen.hpp>
 #include "keyframe.h"
 #include "utility/tic_toc.h"
-#include "utility/compressed_image.h"
+#include "utility/image_utils.h"
 #include "pose_graph.h"
 #include "loop_fusion_io.h"
 #include "parameters.h"
@@ -47,7 +47,7 @@ App::App(rclcpp::Node::SharedPtr, const CommandLineConfig &) {}
 
 using namespace std;
 
-queue<sensor_msgs::msg::CompressedImage::ConstSharedPtr> image_buf;
+queue<sensor_msgs::msg::Image::ConstSharedPtr> image_buf;
 std::queue<sensor_msgs::msg::PointCloud::ConstSharedPtr> point_buf;
 //queue<nav_msgs::Odometry::ConstPtr> pose_buf;
 queue<nav_msgs::msg::Odometry::ConstSharedPtr> pose_buf;
@@ -233,7 +233,7 @@ void new_sequence()
     pose_graph_auto_saved = false;
 }
 
-void App::image_callback(const sensor_msgs::msg::CompressedImage::SharedPtr image_msg)
+void App::image_callback(const sensor_msgs::msg::Image::SharedPtr image_msg)
 {
     //ROS_INFO("image_callback!");
     {
@@ -319,7 +319,7 @@ void process()
 {
     while (true)
     {
-        sensor_msgs::msg::CompressedImage::ConstSharedPtr image_msg = NULL;
+        sensor_msgs::msg::Image::ConstSharedPtr image_msg = NULL;
         sensor_msgs::msg::PointCloud::ConstSharedPtr point_msg = NULL;
         nav_msgs::msg::Odometry::ConstSharedPtr pose_msg = NULL;
 
@@ -425,7 +425,7 @@ void process()
                 skip_cnt = 0;
             }
 
-            cv::Mat image = DecodeCompressedMonoImage(*image_msg);
+            cv::Mat image = ToMonoImage(*image_msg);
             //cv::equalizeHist(image, image);
 
             // build keyframe
@@ -479,7 +479,7 @@ void process()
                 image_time_pose.header.stamp = image_msg->header.stamp;
                 write_odometry_to_bag(image_time_pose);
 
-                write_compressed_image_to_bag(*image_msg);
+                write_compressed_image_to_bag(EncodeJpegImage(*image_msg));
 
                 KeyFrame* keyframe = new KeyFrame(image_msg->header.stamp, frame_index, T, R, image,
                                    point_3d, point_2d_uv, point_2d_normal, point_id, sequence,
@@ -796,7 +796,7 @@ int main(int argc, char **argv)
         SERIAL_SUBSCRIPTION_QUEUE_SIZE : DEFAULT_SUBSCRIPTION_QUEUE_SIZE;
     printf("[POSEGRAPH]: serial processing: %s, input subscription queue: %zu\n",
            SERIAL_PROCESSING ? "true" : "false", subscription_queue_size);
-    auto sub_image = nh->create_subscription<sensor_msgs::msg::CompressedImage>(kLoopImageTopic, subscription_queue_size, std::bind(&App::image_callback, app.get(), std::placeholders::_1));
+    auto sub_image = nh->create_subscription<sensor_msgs::msg::Image>(kLoopImageTopic, subscription_queue_size, std::bind(&App::image_callback, app.get(), std::placeholders::_1));
     auto sub_pose = nh->create_subscription<nav_msgs::msg::Odometry>("/ov_msckf/loop_pose", subscription_queue_size, std::bind(&App::pose_callback, app.get(), std::placeholders::_1));
     auto sub_extrinsic = nh->create_subscription<nav_msgs::msg::Odometry>("/ov_msckf/loop_extrinsic", subscription_queue_size, std::bind(&App::extrinsic_callback, app.get(), std::placeholders::_1));
     auto sub_intrinsics = nh->create_subscription<sensor_msgs::msg::CameraInfo>("/ov_msckf/loop_intrinsics", subscription_queue_size, std::bind(&App::intrinsics_callback, app.get(), std::placeholders::_1));
